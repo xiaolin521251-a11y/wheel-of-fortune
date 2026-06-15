@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>幸运转盘</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 24px;
+    }
+
+    h1 {
+      color: #fff;
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .subtitle {
+      color: rgba(255, 255, 255, 0.85);
+      margin-bottom: 32px;
+      font-size: 0.95rem;
+    }
+
+    .wheel-wrap {
+      position: relative;
+      width: min(340px, 88vw);
+      height: min(340px, 88vw);
+    }
+
+    .pointer {
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 16px solid transparent;
+      border-right: 16px solid transparent;
+      border-top: 32px solid #ffd700;
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.35));
+      z-index: 10;
+    }
+
+    #wheel {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35),
+        inset 0 0 0 8px #fff,
+        inset 0 0 0 12px rgba(255, 255, 255, 0.3);
+      transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+    }
+
+    .center-btn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 4px solid #fff;
+      background: linear-gradient(145deg, #ff6b6b, #ee5a24);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      z-index: 11;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .center-btn:hover:not(:disabled) {
+      transform: translate(-50%, -50%) scale(1.05);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .center-btn:active:not(:disabled) {
+      transform: translate(-50%, -50%) scale(0.97);
+    }
+
+    .center-btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .result {
+      margin-top: 28px;
+      min-height: 56px;
+      padding: 14px 28px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 999px;
+      font-size: 1.15rem;
+      color: #333;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.4s, transform 0.4s;
+    }
+
+    .result.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .result strong {
+      color: #764ba2;
+      font-size: 1.3rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>幸运转盘</h1>
+  <p class="subtitle">点击中间按钮，看看转到谁～</p>
+
+  <div class="wheel-wrap">
+    <div class="pointer"></div>
+    <canvas id="wheel"></canvas>
+    <button class="center-btn" id="spinBtn">开始</button>
+  </div>
+
+  <div class="result" id="result"></div>
+
+  <script>
+    const segments = [
+      { text: "听霖的", color: "#ff6b6b" },
+      { text: "听平的", color: "#4ecdc4" },
+      { text: "听霖的", color: "#ff8787" },
+      { text: "听平的", color: "#45b7aa" },
+      { text: "听霖的", color: "#ff6b6b" },
+      { text: "听平的", color: "#4ecdc4" },
+    ];
+
+    const canvas = document.getElementById("wheel");
+    const ctx = canvas.getContext("2d");
+    const spinBtn = document.getElementById("spinBtn");
+    const resultEl = document.getElementById("result");
+
+    const segmentCount = segments.length;
+    const segmentAngleDeg = 360 / segmentCount;
+    let currentRotation = 0;
+    let spinning = false;
+
+    function resizeCanvas() {
+      const wrap = canvas.parentElement;
+      const size = wrap.clientWidth;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = size * dpr;
+      canvas.height = size * dpr;
+      canvas.style.width = size + "px";
+      canvas.style.height = size + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawWheel();
+    }
+
+    function drawWheel() {
+      const size = canvas.clientWidth;
+      const center = size / 2;
+      const radius = center - 4;
+      const segmentAngle = (2 * Math.PI) / segmentCount;
+
+      ctx.clearRect(0, 0, size, size);
+
+      for (let i = 0; i < segmentCount; i++) {
+        const start = i * segmentAngle - Math.PI / 2;
+        const end = start + segmentAngle;
+
+        ctx.beginPath();
+        ctx.moveTo(center, center);
+        ctx.arc(center, center, radius, start, end);
+        ctx.closePath();
+        ctx.fillStyle = segments[i].color;
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(center, center);
+        ctx.rotate(start + segmentAngle / 2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#fff";
+        ctx.font = `bold ${Math.max(14, size * 0.055)}px Microsoft YaHei, sans-serif`;
+        ctx.shadowColor = "rgba(0,0,0,0.3)";
+        ctx.shadowBlur = 4;
+        ctx.fillText(segments[i].text, radius * 0.72, 6);
+        ctx.restore();
+      }
+
+      ctx.beginPath();
+      ctx.arc(center, center, radius * 0.12, 0, 2 * Math.PI);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
+    }
+
+    function getWinningIndex(rotationDeg) {
+      const normalized = ((rotationDeg % 360) + 360) % 360;
+      const pointerAngle = (270 - normalized + 360) % 360;
+
+      for (let i = 0; i < segmentCount; i++) {
+        const start = ((i * segmentAngleDeg - 90) + 360) % 360;
+        const end = (((i + 1) * segmentAngleDeg - 90) + 360) % 360;
+
+        if (start < end) {
+          if (pointerAngle >= start && pointerAngle < end) return i;
+        } else if (pointerAngle >= start || pointerAngle < end) {
+          return i;
+        }
+      }
+
+      return 0;
+    }
+
+    function spin() {
+      if (spinning) return;
+      spinning = true;
+      spinBtn.disabled = true;
+      resultEl.classList.remove("show");
+      resultEl.textContent = "";
+
+      const targetIndex = Math.floor(Math.random() * segmentCount);
+      const centerLocal = targetIndex * segmentAngleDeg - 90 + segmentAngleDeg / 2;
+      const targetMod = ((270 - centerLocal) % 360 + 360) % 360;
+      const currentMod = ((currentRotation % 360) + 360) % 360;
+      let delta = targetMod - currentMod;
+      if (delta <= 0) delta += 360;
+
+      const extraSpins = 5 + Math.floor(Math.random() * 4);
+      currentRotation += delta + extraSpins * 360;
+
+      canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+      canvas.addEventListener(
+        "transitionend",
+        () => {
+          const winner = segments[targetIndex];
+          resultEl.innerHTML = `恭喜！转到：<strong>${winner.text}</strong>`;
+          resultEl.classList.add("show");
+          spinning = false;
+          spinBtn.disabled = false;
+        },
+        { once: true }
+      );
+    }
+
+    spinBtn.addEventListener("click", spin);
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+  </script>
+</body>
+</html>
